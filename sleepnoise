@@ -1,0 +1,63 @@
+#!/bin/sh
+
+# needed crontab for user
+#
+# @reboot ~/bin/whitenoise
+# */5 * * * * ~/bin/whitenoise
+
+# obtain requist wav file from the following url
+# http://www.audiocheck.net/testtones_highdefinitionaudio.php
+#
+# specifically: http://www.audiocheck.net/download.php?filename=Audio/audiocheck.net_white_192k_-3dBFS.wav
+
+command -v play >/dev/null 2>&1 || {
+echo "I the sox package but it's not installed. Aborting." >&2
+exit 1; }
+
+command -v amixer >/dev/null 2>&1 || {
+echo "I the alsa-utils package but it's not installed. Aborting." >&2
+exit 1; }
+
+VOLATILE=/tmp
+LOG_FILE=$VOLATILE/sleepnoise.log
+noise="audiocheck.net_white_192k_-3dBFS.wav"
+
+[[ -f $VOLATILE/$noise ]] || cp ~/$noise $VOLATILE
+
+NOW=$(date +%Y%m%d_%H:%M:%S)
+time=$(date +%k%M)
+starttime=2029
+stoptime=729
+
+if [ $time -gt $stoptime -a $time -lt $starttime ]; then
+	state=0
+else
+	state=1
+fi
+
+case $state in
+	1)
+		if [[ -n $(pidof play) ]]; then
+			# already running
+			echo $NOW called to run but already running >> $LOG_FILE
+			exit 0
+		else
+			echo $NOW called to run >> $LOG_FILE
+			amixer cset numid=3 1 &>/dev/null
+			play -q -c 2 /tmp/$noise repeat 1680 &
+		fi
+		;;
+	0)
+		if [[ -z $(pidof play) ]]; then
+			# not running
+			echo $NOW called to stop but not running >> $LOG_FILE
+			exit 0
+		else
+			killall play
+			echo $NOW called to stop and just stopped >> $LOG_FILE
+		fi
+		;;
+	*)
+		exit 0
+		;;
+esac
