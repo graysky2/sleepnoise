@@ -1,63 +1,91 @@
-#!/bin/sh
-
+#!/bin/bash
 # needed crontab for user
 #
 # @reboot ~/bin/whitenoise
 # */5 * * * * ~/bin/whitenoise
-
+#
 # obtain requist wav file from the following url
 # http://www.audiocheck.net/testtones_highdefinitionaudio.php
 #
 # specifically: http://www.audiocheck.net/download.php?filename=Audio/audiocheck.net_white_192k_-3dBFS.wav
 
 command -v play >/dev/null 2>&1 || {
-echo "I the sox package but it's not installed. Aborting." >&2
+echo "I require the sox package but it's not installed. Aborting." >&2
 exit 1; }
 
 command -v amixer >/dev/null 2>&1 || {
-echo "I the alsa-utils package but it's not installed. Aborting." >&2
+echo "I require the alsa-utils package but it's not installed. Aborting." >&2
 exit 1; }
 
+# expected to be in ~
+noise="audiocheck.net_white_192k_-3dBFS.wav"
 VOLATILE=/tmp
 LOG_FILE=$VOLATILE/sleepnoise.log
-noise="audiocheck.net_white_192k_-3dBFS.wav"
+isitrunning=$(pidof play)
 
 [[ -f $VOLATILE/$noise ]] || cp ~/$noise $VOLATILE
 
-NOW=$(date +%Y%m%d_%H:%M:%S)
-time=$(date +%k%M)
-starttime=2029
-stoptime=729
+# start at 8:30 PM
+starttime=2030
+day=$(date +%w)
+# 0 = sunday
+# 1 = monday
+# 2 = tuesday
+# 3 = wednesday
+# 4 = thursday
+# 5 = friday
+# 6 = sat
 
-if [ $time -gt $stoptime -a $time -lt $starttime ]; then
-	state=0
+# audiocheck.net_white_192k_-3dBFS.wav is exactly 15 seconds long when play is
+# invoked with the -c 2 switch so to run for 1 hour (3600 seconds), we need
+# repeats = 240
+#
+# For days 0-4, let's run for 10.0 hours (240 x 10.0 = 2400)
+# For days 5-6, let's run for 11.5 hours (240 x 11.5 = 2760)
+
+if [[ $day -ge 5 ]]; then
+  stoptime=800
+  repeats=2760
 else
-	state=1
+  # must be 0-4
+  stoptime=630
+  repeats=2400
+fi
+
+NOW=$(date "+%Y-%m-%d %H:%M:%S")
+time=$(date +%k%M)
+
+if [ $time -ge $stoptime -a $time -lt $starttime ]; then
+  state=0
+else
+  state=1
 fi
 
 case $state in
-	1)
-		if [[ -n $(pidof play) ]]; then
-			# already running
-			echo $NOW called to run but already running >> $LOG_FILE
-			exit 0
-		else
-			echo $NOW called to run >> $LOG_FILE
-			amixer cset numid=3 1 &>/dev/null
-			play -q -c 2 /tmp/$noise repeat 1680 &
-		fi
-		;;
-	0)
-		if [[ -z $(pidof play) ]]; then
-			# not running
-			echo $NOW called to stop but not running >> $LOG_FILE
-			exit 0
-		else
-			killall play
-			echo $NOW called to stop and just stopped >> $LOG_FILE
-		fi
-		;;
-	*)
-		exit 0
-		;;
+  1)
+    if [[ -n "$isitrunning" ]]; then
+      # already running
+      echo $NOW $time called to run but already running and pidof was $isitrunning >> $LOG_FILE
+      exit 0
+    else
+      echo $NOW $time called to run and pidof was $isitrunning >> $LOG_FILE
+      amixer cset numid=3 1 >> $LOG_FILE
+      play -q -c 2 /tmp/$noise repeat $repeats &
+    fi
+    ;;
+  0)
+    if [[ -z "$isitrunning" ]]; then
+      # not running
+      echo $NOW $time should not be running and pidof was $isitrunning >> $LOG_FILE
+      exit 0
+    else
+      killall play
+      echo $NOW $time just killed and pidof was $isitrunning >> $LOG_FILE
+    fi
+    ;;
+  *)
+    exit 0
+    ;;
 esac
+
+# vim:set ts=2 sw=2 et:
