@@ -12,28 +12,6 @@
 # 82c3b9342e2e4f2c6d4932b1c6874583  audiocheck.net_pink_192k_-3dBFS.wav
 # 928f2a9c2c5ab12430300e27b94a9b66  audiocheck.net_white_192k_-3dBFS.wav
 
-daycheck() {
-  # section is only needed if you want the noise to play for a different
-  # amount of time on weekdays vs weekends
-
-  # audiocheck.net_xxx_192k_-3dBFS.wav is exactly 15 seconds long when play is
-  # invoked with the -c 2 switch, so to run for 1 hour (3600 seconds), we need
-  # repeats = 240
-  #
-  # For days 0-4, let's run for 10.0 hours (240 x 10.0 = 2400)
-  # For days 5-6, let's run for 11.5 hours (240 x 11.5 = 2760)
-  # 10 hours for days 0-4
-  # 12 hours for days 5 and 6
-  if [[ $day -ge 5 ]]; then
-    stoptime=800
-    repeats=2760
-  else
-    # must be 0-4
-    stoptime=630
-    repeats=2400
-  fi
-}
-
 command -v play >/dev/null 2>&1 || {
 echo "I require the sox package but it's not installed. Aborting." >&2
 exit 1; }
@@ -67,6 +45,23 @@ day=$(date +%w)
 
 # start at 8:30 PM
 starttime=2030
+
+# audiocheck.net_xxx_192k_-3dBFS.wav is exactly 15 seconds long when play is
+# invoked with the -c 2 switch, so to run for 1 hour (3600 seconds), we need
+# repeats = 240
+#
+# For days 0-4, let's run for 10.0 hours (240 x 10.0 = 2400)
+# For days 5-6, let's run for 11.5 hours (240 x 11.5 = 2760)
+# 10 hours for days 0-4
+# 12 hours for days 5 and 6
+if [[ $day -ge 5 ]]; then
+  stoptime=800
+  repeats=2760
+else
+  # must be 0-4
+  stoptime=630
+  repeats=2400
+fi
 
 NOW=$(date "+%Y-%m-%d %H:%M:%S")
 time=$(date +%k%M)
