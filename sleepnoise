@@ -1,17 +1,5 @@
 #!/bin/bash
 
-# needed crontab for user
-#
-# @reboot ~/bin/whitenoise
-# */5 * * * * ~/bin/whitenoise
-#
-# obtain requist wav file from the following url
-# http://www.audiocheck.net/testtones_highdefinitionaudio.php
-#
-# md5sums
-# 82c3b9342e2e4f2c6d4932b1c6874583  audiocheck.net_pink_192k_-3dBFS.wav
-# 928f2a9c2c5ab12430300e27b94a9b66  audiocheck.net_white_192k_-3dBFS.wav
-
 command -v play >/dev/null 2>&1 || {
 echo "I require the sox package but it's not installed. Aborting." >&2
 exit 1; }
@@ -20,81 +8,59 @@ command -v amixer >/dev/null 2>&1 || {
 echo "I require the alsa-utils package but it's not installed. Aborting." >&2
 exit 1; }
 
-# expected to be in ~
-noise="audiocheck.net_white_192k_-3dBFS.wav"
-
+usage() { echo "Usage: $0 [-r <# of 15 sec repeats>] [-n <white|pink>]"; exit 1; }
+          
+NPREFIX=/usr/share/sleepnoise
 VOLATILE=/tmp
-LOG_FILE=$VOLATILE/sleepnoise.log
+LOG_FILE=~/sleepnoise.log
+NOW=$(date "+%Y-%m-%d %H:%M:%S")
 
-# expected to be in $HOME
-noise="audiocheck.net_pink_192k_-3dBFS.wav"
-[[ -f "$HOME/$noise" ]] || {
-echo "See comments in script for url to download expected white noise file. Aborting." >&2
+while getopts ":r:n:" opt; do
+  case "$opt" in
+    r)
+      if [[ $OPTARG =~ ^[0-9]+$ ]]; then
+        repeats=$OPTARG
+      else
+        echo "ERROR: -r must be an integer!"
+        exit 1
+      fi
+      ;;
+    n)
+      case $OPTARG in
+        white|White|WHITE|w)
+          noise="$NPREFIX/audiocheck.net_white_192k_-3dBFS.wav"
+          ;;
+        pink|Pink|PINK|p)
+          noise="$NPREFIX/audiocheck.net_pink_192k_-3dBFS.wav"
+          ;;
+        *)
+          # default to white if none specified or something else specified
+          echo "ERROR: -n is either white or pink"
+          exit 1
+          ;;
+      esac
+      ;;
+    *)
+      usage ;;
+  esac
+done
+shift $((OPTIND-1))
+
+# user didn't define number of repeats
+[[ -n "$repeats" ]] || usage
+
+# -n is optional so default to white if not specified
+[[ -n "$noise" ]] || noise="$NPREFIX/audiocheck.net_white_192k_-3dBFS.wav"
+
+[[ -f "$noise" ]] || {
+echo "$noise not found. Aborting." >&2
 exit 1; }
 
-[[ -f "$VOLATILE/$noise" ]] || cp "$HOME/$noise" "$VOLATILE"
+# copy wav to tmpfs for 0 disk usage
+[[ -f "$VOLATILE/${noise##*/}" ]] || cp "$noise" "$VOLATILE"
 
-day=$(date +%w)
-# 0 = sunday
-# 1 = monday
-# 2 = tuesday
-# 3 = wednesday
-# 4 = thursday
-# 5 = friday
-# 6 = sat
+echo "$NOW ${noise##*/} $repeats" >> $LOG_FILE
+amixer cset numid=3 1 &>/dev/null
+play -q -c 2 "$VOLATILE/${noise##*/}" repeat $repeats &>/dev/null &
 
-# start at 8:30 PM
-starttime=2030
-
-# audiocheck.net_xxx_192k_-3dBFS.wav is exactly 15 seconds long when play is
-# invoked with the -c 2 switch, so to run for 1 hour (3600 seconds), we need
-# repeats = 240
-#
-# For days 0-4, let's run for 10.0 hours (240 x 10.0 = 2400)
-# For days 5-6, let's run for 11.5 hours (240 x 11.5 = 2760)
-# 10 hours for days 0-4
-# 12 hours for days 5 and 6
-if [[ $day -ge 5 ]]; then
-  stoptime=800
-  repeats=2760
-else
-  # must be 0-4
-  stoptime=630
-  repeats=2400
-fi
-
-NOW=$(date "+%Y-%m-%d %H:%M:%S")
-time=$(date +%k%M)
-
-if [ $time -ge $stoptime -a $time -lt $starttime ]; then
-  state=0
-else
-  state=1
-fi
-
-case $state in
-  1)
-    if pidof play &>/dev/null; then
-      # already running
-      echo "$NOW $day $time state 1 and pidof play: $(pidof play)" >> $LOG_FILE
-    else
-      echo "$NOW $day $time state 1 but play wasn't running so starting it now..." >> $LOG_FILE
-      daycheck
-      amixer cset numid=3 1 >> $LOG_FILE
-      play -q -c 2 /tmp/$noise repeat $repeats &
-    fi
-    ;;
-  0)
-    if ! pidof play &>/dev/null; then
-      # not running
-      echo "$NOW $day $time state 0 and should not be running. pidof play: $(pidof play)" >> $LOG_FILE
-    else
-      killall play
-      echo "$NOW $day $time state 0 and just killed play" >> $LOG_FILE
-    fi
-    ;;
-  *)
-    exit 0
-    ;;
-esac
 # vim:set ts=2 sw=2 et:
