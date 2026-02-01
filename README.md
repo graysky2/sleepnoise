@@ -1,29 +1,46 @@
 # sleepnoise
 ### Purpose
-Play white noise (although can be any clip) in a loop for a specific amount of time depending on the day to aid in sleeping. Good for newborns, elderly pets, or anyone.
+Play noise in a loop for a specific amount of time depending on the day to aid in sleeping. Good for newborns, elderly pets, or anyone.
 
 ### Notes
-Runs very robustly on a [Raspberry Pi 2 ](https://www.raspberrypi.org/products/raspberry-pi-2-model-b), but any Linux machine can run it if so long as the dependencies are met. Of particular interest for the RPi2, is that a totally independent audio/video stream can run simultaneously out the HDMI while this script runs outputting to the 3.5mm jack. See the inline comments in the script itself if you want to tweak to your needs.
+Runs robustly on a Raspberry Pi (tested on RPi2 and RPi4), but any Linux machine with alsa-utils should be able to run it if so long as the dependencies are met. Of particular interest for RPi boards, is that a totally independent audio/video stream can run simultaneously out the HDMI while this script runs outputting to another audio out (USB or 3.5mm jack).
 
 ### Dependencies
 * alsa-utils
+* ffmpeg
 * sox
-* High quality noise clips (white and pink) are available free of charge from [audiocheck.net](http://www.audiocheck.net/testtones_highdefinitionaudio.php). This script expects both the [white noise clip](http://www.audiocheck.net/download.php?filename=Audio/audiocheck.net_white_192k_-3dBFS.wav) and the [pink noise clip](http://www.audiocheck.net/download.php?filename=Audio/audiocheck.net_pink_192k_-3dBFS.wav) to be on your filesystem (see below).
 
 ### Installation
 * Copy `sleepnoise` to a directory of your choosing and make it executable (`~/bin` or `/usr/local/bin` for example).
-* Create `/usr/share/sleepnoise` and copy the two wav files mentioned above into it.
+
+High quality (192 kbit/32-bit) noise samples will be created by the script.
 
 ### Usage
 #### General usage
 The syntax to run the script is given by invoking it.
 ```
-% sleepnoise 
-Usage: /usr/local/bin/sleepnoise [-r <# of 15 sec repeats>] [-n <white|pink>]
-```
-The -r switch is required and is an interger value that corresponds to the number of repeats you want. Since both test clips are 15 seconds long, a value of 1 will play for 15 sec (1 repeat). To run for 1 min, use a value of 4. To run for 1 hour, use a value of 240.
+/path/to/sleepnoise.sh
+Usage: sleepnoise.sh -r <time: Nh, Nm, or raw count> -n <white|pink|brown> -v <1-100> -e <element_id> [-l]
 
-The -n switch is optional. If nothing is specified, the white noise clip is played. To hear the pink noise clip, use a value of pink.
+ERROR: Missing required parameter(s):
+  -r <time: Nh, Nm, or raw count>
+  -n <white|pink|brown> (noise color)
+  -v <1-100> (volume % of sound card)
+  -e <element_id> (from 'amixer controls')
+
+Optional:
+  -l (enable logging to /home/graysky/sleepnoise.log)
+```
+
+Required args are documented. You can get the element_id from `amixer controls`. For example, on RPi4:
+```
+% amixer controls
+numid=2,iface=MIXER,name='PCM Playback Switch'
+numid=3,iface=MIXER,name='PCM Playback Volume'
+numid=1,iface=PCM,name='Playback Channel Map'
+```
+
+`numid=3` is used for USB speakers.
 
 #### Have cron run the script for you
 Assuming you have cron installed, simple edit your crontab to call the script as you wish.
@@ -39,8 +56,8 @@ Assuming you have cron installed, simple edit your crontab to call the script as
 #+------------- min (0 - 59)
 
 # start at 8:30 PM on sun-thurs and run for 10 h
-30 20 * * 0-4 /usr/local/bin/sleepnoise -r 2400 -n pink
+30 20 * * 0-4 /path/to/sleepnoise.sh -n brown -r 10h -v 20 -e 3 -l
 
-# start at 8:30 PM on fri-sat and run for 11-1/2 h
-30 20 * * 5-6 /usr/local/bin/sleepnoise -r 2760 -n pink
+# start at 8:30 PM on fri-sat and run for 12 h
+30 20 * * 5-6 /path/to/sleepnoise.sh -n brown -r 12h -v 20 -e 3 -l
 ```
