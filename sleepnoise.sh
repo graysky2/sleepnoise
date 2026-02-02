@@ -8,9 +8,14 @@ for cmd in amixer play ffmpeg; do
   fi
 done
 
+# more systemd silliness borderline bullshit is that this path becomes
+# inaccessible after some time passes when called via cronie so just
+# use good ole /tmp
+#XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
 wavpath="$HOME"
 log_file="$HOME/sleepnoise.log"
-volatile="$XDG_RUNTIME_DIR"
+volatile=/tmp
 VOLUME=""
 ELEMENT=""
 LOGGING=false
@@ -135,18 +140,16 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   echo "  -l (enable logging to $HOME/sleepnoise.log)"
   exit 1
 fi
+
 [[ -f "$NOISE" ]] || {
   echo "$NOISE not found. Aborting." >&2
   exit 1; }
-  # copy wav to tmpfs for 0 disk usage
-  if [[ -f "$volatile/${NOISE##*/}" ]]; then
-    echo "Audio file already in volatile storage, reusing..."
-  else
-    echo "Copying audio file to volatile storage..."
-    if ! cp "$NOISE" "$volatile"; then
-      echo "ERROR: Failed to copy $NOISE to $volatile (disk full or permissions issue)" >&2
-      exit 1
-    fi
+
+  if [[ ! -f "$volatile/${NOISE##*/}" ]]; then
+      if ! cp "$NOISE" "$volatile"/; then
+        echo "ERROR: could not copy $NOISE to $volatile/"
+        exit 1
+      fi
   fi
 
   now=$(date "+%Y-%m-%d %H:%M:%S")
