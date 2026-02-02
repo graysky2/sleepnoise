@@ -8,6 +8,9 @@ for cmd in amixer play ffmpeg; do
   fi
 done
 
+# calling this from a cron tab may not setup the path
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
 wavpath="$HOME"
 log_file="$HOME/sleepnoise.log"
 volatile="$XDG_RUNTIME_DIR"
@@ -135,6 +138,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   echo "  -l (enable logging to $HOME/sleepnoise.log)"
   exit 1
 fi
+
 [[ -f "$NOISE" ]] || {
   echo "$NOISE not found. Aborting." >&2
   exit 1; }
@@ -143,9 +147,8 @@ fi
     echo "Audio file already in volatile storage, reusing..."
   else
     echo "Copying audio file to volatile storage..."
-    if ! cp "$NOISE" "$volatile"; then
-      echo "ERROR: Failed to copy $NOISE to $volatile (disk full or permissions issue)" >&2
-      exit 1
+    if [[ ! -f "$volatile/$NOISE" ]]; then
+      cp "$NOISE" "$volatile"/
     fi
   fi
 
